@@ -694,14 +694,6 @@ MIT License — [LICENSE](LICENSE)
 
 ---
 
-## Authors
-
-**Project Team:** [Your Names]  
-**Course:** [Course Name]  
-**Instructor:** [Professor Name]
-
----
-
 ## Contact
 
 - 📧 Issues → GitHub Issues
