@@ -141,12 +141,12 @@ Designed for **students and low-income buyers in Nigeria** who struggle with inc
 | **Backend** | Express.js (Node.js 14+), Socket.io |
 | **NLP** | OpenAI GPT API (or Rasa for self-hosted) |
 | **Optimization** | Custom constraint solver (JavaScript) |
-| **Database** | MongoDB (flexible for chat, deals, products) |
+| **Database** | Supabase|
 | **Real-Time** | Socket.io (notifications & live chat) |
 | **Authentication** | JWT (JSON Web Tokens) |
 | **QR Codes** | qrcode.react (React) + qrcode (Node) |
 | **Notifications** | Firebase Cloud Messaging (or custom) |
-| **Deployment** | Docker, Vercel (frontend), Railway/Render (backend) |
+| **Deployment** | Vercel (frontend),Vercel (backend) |
 
 ---
 
