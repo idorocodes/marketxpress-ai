@@ -247,22 +247,22 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 grid-bg">
+      <section className="relative min-h-screen flex flex-col items-center justify-center text-center pt-24 pb-16 grid-bg">
         <div className="hero-glow absolute inset-0 pointer-events-none" />
         <div className="relative z-10 max-w-4xl mx-auto animate-fadeup">
           
 
-          <h1 className="font-display text-5xl md:text-7xl font-extrabold leading-[0.95] tracking-tight mb-6">
+          <h1 className="font-display  text-center text-3xl md:text-7xl font-extrabold leading-[0.95] tracking-tight mb-6">
             Stop Haggling.<br />
             <span className="gold-gradient">Start Buying.</span>
           </h1>
 
-          <p className="font-body text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed">
-            MarketXpress AI negotiates food market prices for you in real-time — across every vendor simultaneously — so you get the best deal without spending your afternoon at a stall.
+          <p className="font-body  text-sm p-3 md:text-xl text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed">
+            MarketXpress AI negotiates food market prices for you in real-time,across every vendor simultaneously, so you get the best deal without spending your afternoon at a stall.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="font-body bg-amber-400 cursor- text-black font-medium text-base px-8 py-4 rounded-full hover:bg-amber-300 transition-all duration-200 hover:scale-105">
+            <button className="font-body bg-amber-400 cursor-pointer  text-black font-medium text-base px-7 py-4 rounded-full hover:bg-amber-300 transition-all duration-200 hover:scale-105">
                <Link to="/signup"> Lets Go</Link>   
             </button>
            
@@ -273,7 +273,7 @@ export default function Landing() {
 
         {/* Scroll hint */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce">
-          <div className="w-px h-8 bg-gradient-to-b from-transparent to-amber-400/40" />
+          <div className="w-px h-8 bg-linear-to-b from-transparent to-amber-400/40" />
         </div>
       </section>
 
@@ -304,7 +304,7 @@ export default function Landing() {
           </div>
 
           {/* Chat UI */}
-          <div className="bg-[#111] rounded-3xl border border-white/8 p-5 space-y-3 min-h-[380px]">
+          <div className="bg-[#111] rounded-3xl border border-white/8 p-5 space-y-3 min-h-95">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/5">
               <div className="w-2 h-2 rounded-full bg-amber-400" />
               <span className="font-body text-xs text-white/30 tracking-wide">MarketXpress · Active</span>
