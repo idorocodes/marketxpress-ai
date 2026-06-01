@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const STATS = [
   { value: "₦2.4B+", label: "Transactions Processed" },
@@ -238,9 +238,9 @@ export default function Landing() {
           </div>
          
           <div className="flex items-center gap-3">
-            <button className="font-body text-sm text-white/50 cursor-pointer hover:text-white px-4 py-2 transition-colors"> <Link to="/signup"> Sign Up</Link>   </button>
-            <button className="font-body text-sm bg-amber-400 cursor-pointer text-black font-medium px-5 py-2 rounded-full hover:bg-amber-300 transition-all duration-200">
-              Get Started
+           
+            <button className="font-body text-sm  bg-amber-400 cursor-pointer text-black font-medium px-5 py-2 rounded-full hover:bg-amber-300 transition-all duration-200">
+              <Link to="/signup"> Sign Up</Link>   
             </button>
           </div>
         </div>
@@ -262,12 +262,10 @@ export default function Landing() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="font-body bg-amber-400 cursor-pointer text-black font-medium text-base px-8 py-4 rounded-full hover:bg-amber-300 transition-all duration-200 hover:scale-105">
-              Try It Free
+            <button className="font-body bg-amber-400 cursor- text-black font-medium text-base px-8 py-4 rounded-full hover:bg-amber-300 transition-all duration-200 hover:scale-105">
+               <Link to="/signup"> Lets Go</Link>   
             </button>
-            <button className="font-body border cursor-pointer border-white/10 text-white/70 text-base px-8 py-4 rounded-full hover:border-white/25 hover:text-white transition-all duration-200">
-              See How It Works
-            </button>
+           
           </div>
 
           <p className="font-body text-xs text-white/25 mt-6">No credit card required · Works in any Nigerian market · Free for buyers</p>
@@ -404,7 +402,7 @@ export default function Landing() {
               </div>
               <div className="flex flex-col gap-3 shrink-0">
                 <button className="font-body bg-amber-400 cursor-pointer text-black font-medium px-7 py-3.5 rounded-full hover:bg-amber-300 transition-all hover:scale-105 whitespace-nowrap">
-                  Register as Vendor →
+                    <Link to="/signup">  Register as Vendor</Link>
                 </button>
                 <p className="font-body text-xs text-white/25 text-center">Free tier available · No hardware needed</p>
               </div>
@@ -443,7 +441,7 @@ export default function Landing() {
                   ))}
                 </div>
                 <button className={`mt-8  cursor-pointer w-full py-3 rounded-full font-body font-medium text-sm transition-all ${p.highlight ? "bg-amber-400 text-black hover:bg-amber-300" : "border border-white/10 text-white/60 hover:border-white/25 hover:text-white"}`}>
-                  {p.price === "Free" || p.price === "₦0" ? "Get Started Free" : "Start Free Trial"}
+                      <Link to="/signup">{p.price === "Free" || p.price === "₦0" ? "Get Started Free" : "Start Free Trial"} </Link>
                 </button>
               </div>
             ))}
@@ -454,14 +452,14 @@ export default function Landing() {
       {/* Final CTA */}
       <section className="py-28 px-6 border-t border-white/5 text-center">
         <div className="max-w-2xl mx-auto">
-          <h2 className="font-display text-5xl md:text-6xl font-extrabold leading-tight mb-6">
+          <h2 className="font-display text-2xl md:text-6xl font-extrabold leading-tight mb-6">
             Your ₦5,000 should<br />buy more than ₦5,000.
           </h2>
           <p className="font-body text-white/40 text-lg mb-10">
             Start buying smarter today. Join 50,000+ Nigerians who never overpay at the market again.
           </p>
           <button className="font-body cursor-pointer bg-amber-400 text-black font-medium text-lg px-10 py-5 rounded-full hover:bg-amber-300 transition-all hover:scale-105">
-            Start Negotiating for Free →
+            <Link to="/signup"> Start Negotiating  </Link>
           </button>
         </div>
       </section>
@@ -474,8 +472,8 @@ export default function Landing() {
           </div>
           <p className="font-body text-xs text-white/25">Built for Nigerian markets. © 2025 MarketXpress AI. MIT License.</p>
           <div className="flex gap-6">
-            {["GitHub", "Twitter", "Privacy"].map(l => (
-              <a key={l} href="#" className="font-body text-xs text-white/30 hover:text-white/60 transition-colors">{l}</a>
+            {["GitHub"].map(l => (
+              <a key={l} href="https://www.github.com/idorocodes/marketxpress-ai" target="_blank" className="font-body text-xs text-white/30 hover:text-white/60 transition-colors">{l}</a>
             ))}
           </div>
         </div>
