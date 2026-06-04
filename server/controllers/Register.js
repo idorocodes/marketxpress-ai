@@ -1,54 +1,37 @@
-
-import prisma from '../db/db.js';
+import { db } from "../db/db.js"; 
 
 import bcrypt from "bcryptjs"
 
-import generateToken from "../util/jwt.js"
-
+import jwtUtils from "../util/jwt.js"
+ 
 const Register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Please enter all fields" });
     }
-
-
-    const userExists = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (userExists) {
+ 
+    const checkUser = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (checkUser.rows.length > 0) {
       return res.status(400).json({ message: "User already exists with this email" });
     }
 
-
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
-    const newUser = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: role ? role.toUpperCase() : 'BUYER', 
-      },
-    });
-
+    const userRole = role ? role.toUpperCase() : 'BUYER';
+ 
+    const insertQuery = `
+      INSERT INTO users (name, email, password, role)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, email, role;
+    `;
     
-    const token = generateToken(user);
+    const { rows } = await db.query(insertQuery, [name, email, hashedPassword, userRole]);
+    const newUser = rows[0];
+    const token = jwtUtils.generateToken(newUser);
 
-    // 6. Return payload to frontend (excluding password)
-    res.status(201).json({
-      token,
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-      },
-    });
+    res.status(201).json({ token, user: newUser });
 
   } catch (error) {
     console.error("Registration error:", error);

@@ -1,6 +1,19 @@
-import PrismaClient from "@prisma/client"
-const prisma = new global.prisma || new PrismaClient();
+ 
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
+ 
+neonConfig.webSocketConstructor = ws;
 
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+const connectionString = process.env.DATABASE_URL;
 
-export default prisma
+if (!connectionString || connectionString.trim() === "") {
+  throw new Error("❌ CRITICAL: DATABASE_URL is missing inside db.js!");
+}
+
+ 
+const pool = new Pool({ connectionString });
+
+ 
+export const db = {
+  query: (text, params) => pool.query(text, params),
+};
