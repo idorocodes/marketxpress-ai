@@ -4,7 +4,7 @@ import  jwtUtils  from "../../util/jwt.js";
 
  const Login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body;w
 
     if (!email || !password) {
       return res.status(400).json({ message: "Please enter all fields" });

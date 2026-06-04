@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+ import { useState, useEffect, useRef } from "react";
 import {
   MessageSquare, Plus, LogOut, Send, Sparkles,
   Wallet, Menu, X, User, ShoppingBag, TrendingDown,
@@ -10,9 +10,11 @@ const FontLoader = () => {
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Syne:wght=600;700;800&family=JetBrains+Mono:wght=400;500&family=DM+Sans:wght=300;400;500&display=swap";
     document.head.appendChild(link);
-    return () => document.head.removeChild(link);
+    return () => {
+      if (document.head.contains(link)) document.head.removeChild(link);
+    };
   }, []);
   return null;
 };
@@ -93,7 +95,6 @@ const Bubble = ({ msg, isNew }) => {
     <div
       className={`flex gap-3 max-w-3xl transition-all duration-500 ${isNew ? "animate-slide-up" : ""} ${isUser ? "ml-auto flex-row-reverse" : ""}`}
     >
-      {/* Avatar */}
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border text-[11px] font-mono ${
         isUser
           ? "bg-white/[0.04] border-white/[0.08] text-white/50"
@@ -102,7 +103,6 @@ const Bubble = ({ msg, isNew }) => {
         {isUser ? <User className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
       </div>
 
-      {/* Content */}
       <div className={`flex flex-col gap-1 max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
         <span className={`text-[10px] font-mono uppercase tracking-widest ${isUser ? "text-white/20" : "text-amber-400/50"}`}>
           {isUser ? "You" : "Decider Engine"}
@@ -146,20 +146,21 @@ const TypingIndicator = () => (
   </div>
 );
 
-/* ─── History item ─── */
-const HistoryItem = ({ chat, active }) => (
-  <button className={`w-full text-left py-2 px-3 rounded-lg flex items-center gap-2.5 group transition-all duration-200 ${
-    active ? "bg-amber-400/[0.08] border border-amber-400/20" : "hover:bg-white/[0.025] border border-transparent"
-  }`}>
+/* ─── History item (FIXED: added onClick prop destructuring) ─── */
+const HistoryItem = ({ chat, active, onClick }) => (
+  <button 
+    onClick={onClick}
+    className={`w-full text-left py-2 px-3 rounded-lg flex items-center gap-2.5 group transition-all duration-200 ${
+      active ? "bg-amber-400/[0.08] border border-amber-400/20" : "hover:bg-white/[0.025] border border-transparent"
+    }`}
+  >
     <MessageSquare className={`w-3.5 h-3.5 shrink-0 transition-colors ${active ? "text-amber-400" : "text-white/20 group-hover:text-white/40"}`} />
     <span className={`text-xs truncate transition-colors ${active ? "text-white/80" : "text-white/40 group-hover:text-white/60"}`}>{chat.title}</span>
     {active && <ChevronRight className="w-3 h-3 text-amber-400/50 ml-auto shrink-0" />}
   </button>
 );
 
-/* ══════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════ */
+ 
 const ClientDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [budget, setBudget] = useState("4500");
@@ -168,6 +169,7 @@ const ClientDashboard = () => {
   const [activeChat, setActiveChat] = useState(1);
   const feedRef = useRef(null);
   const inputRef = useRef(null);
+
 
   const [chatHistory] = useState([
     { id: 1, title: "Jollof Rice Sourcing" },
@@ -186,51 +188,90 @@ const ClientDashboard = () => {
     },
   ]);
 
-  /* Auto-scroll on new messages */
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || isLoading) return;
+ const handleSendMessage = async (e) => {
+  e.preventDefault();
+  if (!inputMessage.trim() || isLoading) return;
 
-    const userMsg = {
-      id: Date.now(),
-      role: "user",
-      content: inputMessage,
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+  const token = localStorage.getItem("user_token");
+
+  // 1. Capture user message text
+  const userText = inputMessage;
+  const userMsg = {
+    id: Date.now(),
+    role: "user",
+    content: userText,
+    timestamp: now(),
+    isNew: true,
+  };
+
+  setMessages((prev) => [...prev, userMsg]);
+  setInputMessage("");
+  setIsLoading(true);
+
+  if (inputRef.current) inputRef.current.style.height = "auto";
+
+  try {
+    // 2. Post the natural language requirement to your backend matrix agent
+    const response = await fetch(`${baseUrl}/decider/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        message: userText, // Your AI parser processes this text string
+        budget: Number(budget) // Passes your raw state budget cap
+      })
+    });
+
+    const resData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(resData.message || "Engine calculation failed bounds checks.");
+    }
+
+    const engineResult = resData.data;
+
+    // 3. Transform your backend payload directly into the visual Chat Bubble structure
+    const responseMsg = {
+      id: Date.now() + 1,
+      role: "assistant",
+      content: engineResult.feasible 
+        ? `Optimization complete. Scanned database states. Best splits identified across market stalls.`
+        : `Boundary collision: ${engineResult.reason}`,
       timestamp: now(),
       isNew: true,
+      // Maps backend optimization metrics seamlessly to your DealCard parameters
+      deal: engineResult.feasible ? {
+        vendor: `${engineResult.line_items[0]?.vendor_name || 'Market Stall'} · ${engineResult.line_items[0]?.stall_number || 'Multiple'}`,
+        items: engineResult.line_items.map(item => ({
+          name: item.product_name,
+          qty: `${item.quantity} ${item.unit_type}`,
+          price: `₦${item.line_total.toLocaleString()}`
+        })),
+        total: `₦${engineResult.total_cost.toLocaleString()}`,
+        saved: `₦${engineResult.total_savings.toLocaleString()}`
+      } : null
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInputMessage("");
-    setIsLoading(true);
-
-    /* Simulate engine response */
-    setTimeout(() => {
-      const responseMsg = {
-        id: Date.now() + 1,
-        role: "assistant",
-        content: `Optimization complete. Scanned 14 active vendors. Best split identified — single-vendor route minimises your logistics overhead.`,
-        timestamp: now(),
-        isNew: true,
-        deal: {
-          vendor: "Mama Amina's Stall · Stall 14",
-          items: [
-            { name: "Long-grain rice", qty: "3 kg", price: "₦2,055" },
-            { name: "Roma tomatoes", qty: "2 kg", price: "₦1,060" },
-            { name: "Tatashe peppers", qty: "0.5 kg", price: "₦225" },
-            { name: "White onions", qty: "0.5 kg", price: "₦75" },
-          ],
-          total: "₦3,415",
-          saved: "₦1,085",
-        },
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      setIsLoading(false);
-    }, 2200);
-  };
+    setMessages((prev) => [...prev, responseMsg]);
+  } catch (err) {
+    // Handle offline states gracefully
+    setMessages((prev) => [...prev, {
+      id: Date.now() + 2,
+      role: "assistant",
+      content: `System connection issue: ${err.message || "Failed to reach optimization node."}`,
+      timestamp: now()
+    }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleLogout = () => {
     localStorage.removeItem("user_token");
@@ -267,15 +308,11 @@ const ClientDashboard = () => {
         .budget-shimmer { background:linear-gradient(90deg,transparent,rgba(245,158,11,0.04),transparent); background-size:200% 100%; animation:shimmer 3s infinite; }
       `}</style>
 
-      <div className="h-screen w-screen flex overflow-hidden main-bg text-white font-body antialiased">
-
-        {/* ── Ambient atmosphere ── */}
+      <div className="h-screen w-screen flex overflow-hidden main-bg text-white font-body antialiased relative">
         <div className="ambient-top absolute inset-0 pointer-events-none z-0" />
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/[0.03] rounded-full blur-[120px] pointer-events-none z-0" />
 
-        {/* ════════════════════════════════
-            MOBILE NAV BAR
-        ════════════════════════════════ */}
+        {/* ════ MOBILE NAV BAR ════ */}
         <div className="md:hidden fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-4 border-b border-white/[0.05]"
           style={{ background: "rgba(8,8,8,0.9)", backdropFilter: "blur(20px)" }}>
           <button onClick={() => setSidebarOpen(true)} className="text-white/40 hover:text-white/70 transition-colors">
@@ -289,28 +326,22 @@ const ClientDashboard = () => {
           </div>
         </div>
 
-        {/* Sidebar overlay (mobile) */}
         {sidebarOpen && (
           <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
         )}
 
-        {/* ════════════════════════════════
-            LEFT SIDEBAR
-        ════════════════════════════════ */}
+        {/* ════ LEFT SIDEBAR ════ */}
         <aside className={`
           fixed inset-y-0 left-0 z-50 w-72 sidebar-bg flex flex-col border-r border-white/[0.05]
           transform transition-transform duration-300 ease-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           md:relative md:translate-x-0 md:flex
         `}>
-
-          {/* Mobile close */}
           <button onClick={() => setSidebarOpen(false)}
             className="md:hidden absolute top-4 right-4 text-white/30 hover:text-white/60 transition-colors z-10">
             <X className="w-4 h-4" />
           </button>
 
-          {/* ── Logo ── */}
           <div className="px-5 pt-5 pb-4 border-b border-white/[0.05]">
             <div className="font-display text-xl font-bold tracking-tight">
               Market<span className="gold-text">Xpress</span>
@@ -321,16 +352,12 @@ const ClientDashboard = () => {
             </div>
           </div>
 
-          {/* ── Scrollable body ── */}
           <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4 space-y-5">
-
-            {/* New deal button */}
             <button className="w-full hairline hover:border-amber-400/25 bg-white/[0.02] hover:bg-amber-400/[0.04] text-white/60 hover:text-amber-400 transition-all duration-200 rounded-xl py-3 px-4 flex items-center gap-2.5 text-[13px] font-medium group">
               <Plus className="w-4 h-4 text-amber-400/50 group-hover:text-amber-400 transition-colors" />
               New Deal Sourcing
             </button>
 
-            {/* Budget input */}
             <div className="rounded-xl hairline overflow-hidden budget-shimmer">
               <div className="bg-white/[0.02] px-4 pt-3 pb-3">
                 <label className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-white/30 mb-2">
@@ -351,7 +378,6 @@ const ClientDashboard = () => {
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl hairline bg-white/[0.015] px-3 py-2.5">
                 <StatBadge label="Vendors" value={8200} suffix="+" />
@@ -361,21 +387,23 @@ const ClientDashboard = () => {
               </div>
             </div>
 
-            {/* Chat history */}
             <div>
               <span className="block text-[10px] font-mono uppercase tracking-widest text-white/20 px-1 mb-2">
                 Recent Calculations
               </span>
               <div className="space-y-0.5">
                 {chatHistory.map((chat) => (
-                  <HistoryItem key={chat.id} chat={chat} active={activeChat === chat.id}
-                    onClick={() => setActiveChat(chat.id)} />
+                  <HistoryItem 
+                    key={chat.id} 
+                    chat={chat} 
+                    active={activeChat === chat.id}
+                    onClick={() => setActiveChat(chat.id)} 
+                  />
                 ))}
               </div>
             </div>
           </div>
 
-          {/* ── Footer ── */}
           <div className="border-t border-white/[0.05] p-4 space-y-1">
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl hairline bg-white/[0.02]">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500/20 to-amber-400/10 border border-amber-400/20 flex items-center justify-center">
@@ -395,12 +423,8 @@ const ClientDashboard = () => {
           </div>
         </aside>
 
-        {/* ════════════════════════════════
-            MAIN CHAT AREA
-        ════════════════════════════════ */}
+        {/* ════ MAIN CHAT AREA ════ */}
         <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 relative z-10">
-
-          {/* Top bar */}
           <div className="hidden md:flex items-center justify-between px-6 py-3.5 border-b border-white/[0.05]"
             style={{ background: "rgba(12,12,12,0.8)", backdropFilter: "blur(12px)" }}>
             <div className="flex items-center gap-3">
@@ -418,7 +442,6 @@ const ClientDashboard = () => {
             </div>
           </div>
 
-          {/* ── Message feed ── */}
           <div ref={feedRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 md:px-8 py-6 space-y-5">
             <div className="max-w-3xl mx-auto space-y-5">
               {messages.map((msg) => (
@@ -428,7 +451,6 @@ const ClientDashboard = () => {
             </div>
           </div>
 
-          {/* ── Input area ── */}
           <div className="px-4 md:px-8 pb-6 pt-3"
             style={{ background: "linear-gradient(to top, #0C0C0C 60%, transparent)" }}>
             <div className="max-w-3xl mx-auto">
@@ -465,7 +487,6 @@ const ClientDashboard = () => {
               </div>
             </div>
           </div>
-
         </main>
       </div>
     </>

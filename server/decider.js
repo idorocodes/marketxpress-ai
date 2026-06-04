@@ -1,36 +1,22 @@
-/**
- * MarketXpress AI — Decider Engine
- * ─────────────────────────────────────────────────────────────────────────────
- * Constraint-satisfaction optimizer mapped directly to real architecture schemas.
- */
-
+import  AiClient from "./controllers/Ai/AI.js";
+import { db } from "./db/db.js"; 
 "use strict";
-
-// ─── Architecture Parameter Constants ────────────────────────────────────────
 
 const MIN_VENDOR_MARGIN   = 50;      // ₦ minimum profit per line item (fairness floor)
 const NEGOTIATION_FLOOR   = 0.80;    // negotiated price ≥ advertised × 0.80
 const MAX_CANDIDATES      = 12;      // max vendor candidates per item (complexity cap)
 const MAX_COMBINATIONS    = 500_000; // hard abort if cartesian product exceeds this
 
-// ─── Utility Helpers ──────────────────────────────────────────────────────────
-
-/** Normalise product name for matching */
 const norm = (s) => s.toUpperCase().trim().replace(/\s+/g, " ");
 
-/**
- * Compute negotiated pricing bounds
- * Strategy: offer floor (advertised * 0.8), but never drop below vendor minimum floor constraint.
- */
 function computeNegotiatedPrice(advertised, minimum) {
   const floor = Math.ceil(advertised * NEGOTIATION_FLOOR);
   const offered = Math.max(floor, minimum);
   return Math.min(offered, advertised);
 }
 
-/**
- * Cartesian product of candidate arrays with early cost pruning optimization
- */
+const aiInstance = new AiClient(process.env.GROQ_API_KEY);
+
 function cartesianPruned(arrays, budget) {
   let result = [[]];
   let combinations = 0;
@@ -39,8 +25,7 @@ function cartesianPruned(arrays, budget) {
     const next = [];
     for (const existing of result) {
       const runningCost = existing.reduce((s, c) => s + c.line_total, 0);
-      for (const candidate of pool) {
-        // Prune path immediately if running bundle exceeds buyer capacity threshold
+      for (const candidate of pool) { 
         if (runningCost + candidate.line_total > budget) continue;
         next.push([...existing, candidate]);
         if (++combinations > MAX_COMBINATIONS) {
@@ -84,7 +69,6 @@ export function runDecider({ required_items, vendor_products, budget }) {
 
     const candidates = matching
       .map(vp => {
-        // Parse raw string numerals delivered by backend database layer safely
         const advertisedNum = parseFloat(vp.advertised);
         const minimumNum = parseFloat(vp.minimum);
 
@@ -107,9 +91,7 @@ export function runDecider({ required_items, vendor_products, budget }) {
           minimum: minimumNum,
         };
       })
-      // Fairness filter pass
       .filter(c => c.vendor_margin >= MIN_VENDOR_MARGIN)
-      // Cheapest execution sequences sort first
       .sort((a, b) => a.line_total - b.line_total)
       .slice(0, MAX_CANDIDATES);
 
@@ -139,7 +121,6 @@ export function runDecider({ required_items, vendor_products, budget }) {
     const vendorCount = new Set(combo.map(c => c.vendor_id)).size;
     const totalMargin = combo.reduce((s, c) => s + c.vendor_margin, 0);
 
-    // Multi-objective optimization weight matrix score
     const score = totalCost + (vendorCount * 200) - (totalMargin * 0.01);
 
     if (score < bestScore) {
@@ -180,50 +161,60 @@ function _infeasible(uncovered, ms, reason) {
   };
 }
 
-// ─── Express Integration Endpoint Controller Handler ──────────────────────────
+// ─── Route Controller Logic ─────────────────────────────────────────────────
 
 export const executeOptimizationQuery = async (req, res) => {
   try {
-    const { required_items, budget } = req.body;
+    const { message, budget } = req.body; 
 
-    if (!Array.isArray(required_items) || required_items.length === 0) {
-      return res.status(400).json({ success: false, message: "Target required_items array parameter must not be empty." });
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ success: false, message: "Target user string 'message' parameter is missing." });
     }
     if (!budget || typeof budget !== "number" || budget <= 0) {
       return res.status(400).json({ success: false, message: "A numerical positive budget limit must be defined." });
     }
 
-    // Access direct pooling layer (Adapts to database query engines seamlessly)
-    const db = req.app.get("db_pool") || req.app.get("supabase");
-    const targetNames = required_items.map(i => norm(i.name));
-
-    // Dynamic extraction pipeline matches database schemas cleanly
-    const { data: databaseProductRecords, error: dbError } = await db
-      .from("products")
-      .select(`
-        id,
-        vendor_id,
-        name,
-        advertised,
-        minimum,
-        stock,
-        unit_type,
-        vendors ( name, stall_number )
-      `)
-      .in("name", targetNames)
-      .gt("stock", 0);
-
-    if (dbError) {
-      console.error("Critical internal matrix routing failure:", dbError);
-      return res.status(500).json({ success: false, message: "Failed to load live structural inventory balances across nodes." });
+    let extractedItems;
+    try {
+      extractedItems = await aiInstance.parseUserRequirements(message);
+      console.log("[DeciderAI] Successfully mapped requirements:", extractedItems);
+    } catch (aiErr) {
+      console.error("[DeciderAI] Structural inference failure:", aiErr);
+      return res.status(422).json({ 
+        success: false, 
+        message: "The AI was unable to extract valid grocery quantities from your input phrase. Please try again." 
+      });
     }
 
-    // Map rows directly to current structural model configuration parameters
+    // ── NEW STEP B: EXECUTING VIA YOUR NATIVE POSTGRESQL POOL UTILITY ──
+    const targetNames = extractedItems.map(i => i.name.toUpperCase());
+
+    // Generates safe incremental SQL variable indexes ($1, $2, $3...) dynamically
+    const placeholders = targetNames.map((_, index) => `$${index + 1}`).join(', ');
+    
+    const queryText = `
+      SELECT 
+        p.id,
+        p.vendor_id,
+        p.name,
+        p.advertised,
+        p.minimum,
+        p.stock,
+        p.unit_type,
+        v.name AS vendor_name,
+        v.stall_number
+      FROM products p
+      LEFT JOIN vendors v ON p.vendor_id = v.id
+      WHERE UPPER(p.name) IN (${placeholders}) AND p.stock > 0
+    `;
+
+    const { rows: databaseProductRecords } = await db.query(queryText, targetNames);
+
     const standardizedInventory = (databaseProductRecords || []).map(row => ({
       id: row.id,
       vendor_id: row.vendor_id,
-      vendor_name: row.vendors?.name ?? "Market Stand Merchant",
-      stall_number: row.vendors?.stall_number ?? "Central Row",
+      vendor_name: row.vendor_name ?? "Market Merchant",
+      stall_number: row.stall_number ?? "Row Central",
       name: row.name,
       advertised: row.advertised,
       minimum: row.minimum,
@@ -231,9 +222,9 @@ export const executeOptimizationQuery = async (req, res) => {
       unit_type: row.unit_type
     }));
 
-    // Pass items directly through local resolution cluster algorithm
+    // ── STEP C: RUN COMBINATORIAL OPTIMIZATION LOOP ──
     const optimizationResult = runDecider({ 
-      required_items, 
+      required_items: extractedItems, 
       vendor_products: standardizedInventory, 
       budget 
     });
@@ -244,7 +235,7 @@ export const executeOptimizationQuery = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Critical decider runtime engine crash:", err);
-    return res.status(500).json({ success: false, message: "Internal constraint optimizer routing drop." });
+    console.error("Critical end-to-end decider runtime crash:", err);
+    return res.status(500).json({ success: false, message: "Internal server optimization process tracking drop." });
   }
 };
