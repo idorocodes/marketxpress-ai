@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv"
-
+import cors from "cors"
 
 dotenv.config()
 
@@ -11,6 +11,7 @@ import error404Middleware from "./middleware/404.js";
 import authRouter from "./routes/auth.js";
 import vendorRouter from "./routes/vendor.js";
 
+app.use(cors())
 app.use(express.json());
 
 app.use("/api/auth",authRouter);
