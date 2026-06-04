@@ -1,8 +1,8 @@
-import { db } from "../db/db.js"; 
+import { db } from "../../db/db.js"; 
 
 import bcrypt from "bcryptjs"
 
-import jwtUtils from "../util/jwt.js"
+import jwtUtils from "../../util/jwt.js"
  
 const Register = async (req, res) => {
   try {
