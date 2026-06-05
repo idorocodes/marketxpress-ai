@@ -1,9 +1,9 @@
-import  AiClient from "./controllers/Ai/AI.js";
-import { db } from "./db/db.js"; 
+import  AiClient  from "./controllers/Ai/AI.js";
+import { db } from "./db/db.js"; // Standard PostgreSQL utility client instance import
 "use strict";
 
-const MIN_VENDOR_MARGIN   = 50;      // ₦ minimum profit per line item (fairness floor)
-const NEGOTIATION_FLOOR   = 0.80;    // negotiated price ≥ advertised × 0.80
+const MIN_VENDOR_MARGIN   = 0;      // ₦ minimum profit per line item (fairness floor)
+const NEGOTIATION_FLOOR   = 0.90;    // negotiated price ≥ advertised × 0.80
 const MAX_CANDIDATES      = 12;      // max vendor candidates per item (complexity cap)
 const MAX_COMBINATIONS    = 500_000; // hard abort if cartesian product exceeds this
 
@@ -74,14 +74,14 @@ export function runDecider({ required_items, vendor_products, budget }) {
 
         const neg = computeNegotiatedPrice(advertisedNum, minimumNum);
         const total = parseFloat((neg * req.quantity).toFixed(2));
-        const margin = parseFloat(((neg - minimumNum) * req.quantity).toFixed(2));
+        const margin = parseFloat(((advertisedNum - neg) * req.quantity).toFixed(2));
 
         return {
           id: vp.id,
           product_name: norm(vp.name),
           vendor_id: vp.vendor_id,
           vendor_name: vp.vendor_name ?? "Market Merchant",
-          stall_number: vp.stall_number ?? "Open Row",
+          stall_number: vp.stall_number ?? "Main Market Row", // Dynamic fallback placeholder
           quantity: req.quantity,
           unit_type: vp.unit_type,
           negotiated_price: neg,
@@ -161,35 +161,44 @@ function _infeasible(uncovered, ms, reason) {
   };
 }
 
-// ─── Route Controller Logic ─────────────────────────────────────────────────
-
 export const executeOptimizationQuery = async (req, res) => {
   try {
-    const { message, budget } = req.body; 
+    const { message, required_items, budget } = req.body; 
 
-    if (!message || typeof message !== "string") {
-      return res.status(400).json({ success: false, message: "Target user string 'message' parameter is missing." });
-    }
+    
     if (!budget || typeof budget !== "number" || budget <= 0) {
       return res.status(400).json({ success: false, message: "A numerical positive budget limit must be defined." });
     }
 
     let extractedItems;
-    try {
-      extractedItems = await aiInstance.parseUserRequirements(message);
-      console.log("[DeciderAI] Successfully mapped requirements:", extractedItems);
-    } catch (aiErr) {
-      console.error("[DeciderAI] Structural inference failure:", aiErr);
-      return res.status(422).json({ 
+
+   
+    if (required_items && Array.isArray(required_items) && required_items.length > 0) {
+      extractedItems = required_items;
+      console.log("[DeciderEngine] Processing structured form array directly:", extractedItems);
+    } 
+    
+    else if (message && typeof message === "string") {
+      try {
+        extractedItems = await aiInstance.parseUserRequirements(message);
+        console.log("[DeciderAI] Successfully mapped raw text string requirements:", extractedItems);
+      } catch (aiErr) {
+        console.error("[DeciderAI] Structural inference failure:", aiErr);
+        return res.status(422).json({ 
+          success: false, 
+          message: "The AI was unable to extract valid grocery quantities from your input phrase." 
+        });
+      }
+    } 
+    // SCENARIO 3: Neither parameter was structured or filled out
+    else {
+      return res.status(400).json({ 
         success: false, 
-        message: "The AI was unable to extract valid grocery quantities from your input phrase. Please try again." 
+        message: "Request processing halted. Please pass either a textual 'message' or an array of 'required_items'." 
       });
     }
-
-    // ── NEW STEP B: EXECUTING VIA YOUR NATIVE POSTGRESQL POOL UTILITY ──
+ 
     const targetNames = extractedItems.map(i => i.name.toUpperCase());
-
-    // Generates safe incremental SQL variable indexes ($1, $2, $3...) dynamically
     const placeholders = targetNames.map((_, index) => `$${index + 1}`).join(', ');
     
     const queryText = `
@@ -201,11 +210,12 @@ export const executeOptimizationQuery = async (req, res) => {
         p.minimum,
         p.stock,
         p.unit_type,
-        v.name AS vendor_name,
-        v.stall_number
+        u.name AS vendor_name
       FROM products p
-      LEFT JOIN vendors v ON p.vendor_id = v.id
-      WHERE UPPER(p.name) IN (${placeholders}) AND p.stock > 0
+      LEFT JOIN users u ON p.vendor_id = u.id
+      WHERE UPPER(p.name) IN (${placeholders}) 
+        AND p.stock > 0 
+        AND u.role = 'VENDOR'
     `;
 
     const { rows: databaseProductRecords } = await db.query(queryText, targetNames);
@@ -214,7 +224,7 @@ export const executeOptimizationQuery = async (req, res) => {
       id: row.id,
       vendor_id: row.vendor_id,
       vendor_name: row.vendor_name ?? "Market Merchant",
-      stall_number: row.stall_number ?? "Row Central",
+      stall_number: "Main Row", // Placeholder since stall_number isn't in your schema yet
       name: row.name,
       advertised: row.advertised,
       minimum: row.minimum,
