@@ -1,9 +1,26 @@
 @import "tailwindcss";
+@import "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap";
 
+@theme {
+ 
+  --font-display: "Syne", sans-serif;
+  --font-sans: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --color-gold-light: #fbbf24;
+  --color-gold-dark: #d97706;
+}
 
+@layer utilities {
+  /* Elegant reusable text gradient for price badges or headings */
+  .gold-gradient {
+    background: linear-gradient(135deg, var(--color-gold-light) 0%, var(--color-gold-dark) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
 
-.gold-gradient {
-  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+body {
+ 
+  font-family: var(--font-sans);
+  @apply bg-neutral-50 text-neutral-900 antialiased;
 }

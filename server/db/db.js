@@ -17,3 +17,6 @@ const pool = new Pool({ connectionString });
 export const db = {
   query: (text, params) => pool.query(text, params),
 };
+
+
+export default db

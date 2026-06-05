@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   MessageSquare, Plus, LogOut, Send, Sparkles,
   Wallet, Menu, X, User, ShoppingBag, TrendingDown,
-  ChevronRight, Zap, Clock
+  ChevronRight, Zap, Clock, CheckCircle, Loader2
 } from "lucide-react";
 
 /* ─── Google Fonts ─── */
@@ -19,14 +19,14 @@ const FontLoader = () => {
 };
 
 /* ─── Count-up hook ─── */
-function useCountUp(target, active) {
+function useCountUp(target: unknown, active: unknown) {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!active) return;
-    let raf;
+    let raf: number;
     const start = performance.now();
     const duration = 1200;
-    const step = (now) => {
+    const step = (now: number) => {
       const t = Math.min((now - start) / duration, 1);
       setVal(Math.round(t * t * target));
       if (t < 1) raf = requestAnimationFrame(step);
@@ -54,37 +54,126 @@ const StatBadge = ({ label, value, suffix = "" }) => {
   );
 };
 
-/* ─── Deal card ─── */
-const DealCard = ({ items = [], total, vendor, saved }) => (
-  <div className="mt-4 rounded-xl border border-amber-400/20 overflow-hidden">
-    <div className="bg-amber-400/[0.06] border-b border-amber-400/15 px-4 py-2.5 flex items-center justify-between">
-      <div className="flex items-center gap-2 text-[11px] font-mono font-medium text-amber-400 uppercase tracking-widest">
-        <ShoppingBag className="w-3 h-3" />
-        Decider Output · {vendor}
-      </div>
-      <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-400">
-        <TrendingDown className="w-3 h-3" />
-        Save {saved}
-      </div>
-    </div>
-    <div className="px-4 py-3 space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-white/20 w-4">{String(i + 1).padStart(2, "0")}</span>
-            <span className="text-xs text-white/70">{item.name}</span>
-            <span className="text-[10px] text-white/30 font-mono">{item.qty}</span>
-          </div>
-          <span className="text-xs font-mono text-white/80">{item.price}</span>
+/* ─── Updated Deal Card with API Interactions ─── */
+const DealCard = ({ items = [], total, vendor, saved, rawPayload }) => {
+  const [dealId, setDealId] = useState(null);
+  const [status, setStatus] = useState("AVAILABLE"); // AVAILABLE, CREATING, PENDING_VENDOR, ACCEPTED
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+  const token = localStorage.getItem("user_token");
+
+  // Step 1: Initialize deal creation on backend from optimizer array
+  const handleLockDeal = async () => {
+    if (!rawPayload || actionLoading) return;
+    setActionLoading(true);
+    setStatus("CREATING");
+
+    try {
+      const res = await fetch(`${baseUrl}/deals/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          line_items: rawPayload.line_items,
+          total_cost: rawPayload.total_cost,
+          total_savings: rawPayload.total_savings
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setDealId(data.dealId);
+      
+      // Auto-trigger Buyer side handshake immediately after routing initialization
+      handleBuyerConfirm(data.dealId);
+    } catch (err) {
+      console.error("Deal locking failed:", err);
+      setStatus("AVAILABLE");
+      setActionLoading(false);
+    }
+  };
+
+  // Step 2: Confirm handshake node state verification
+  const handleBuyerConfirm = async (targetId: any) => {
+    try {
+      const res = await fetch(`${baseUrl}/deals/${targetId}/confirm`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      
+      if (data.status === "ACCEPTED") {
+        setStatus("ACCEPTED");
+      } else {
+        setStatus("PENDING_VENDOR");
+      }
+    } catch (err) {
+      console.error("Handshake state sync error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-400/20 overflow-hidden bg-black/40">
+      <div className="bg-amber-400/[0.06] border-b border-amber-400/15 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] font-mono font-medium text-amber-400 uppercase tracking-widest">
+          <ShoppingBag className="w-3 h-3" />
+          Decider Output · {vendor}
         </div>
-      ))}
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-400">
+          <TrendingDown className="w-3 h-3" />
+          Save {saved}
+        </div>
+      </div>
+      <div className="px-4 py-3 space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-white/20 w-4">{String(i + 1).padStart(2, "0")}</span>
+              <span className="text-xs text-white/70">{item.name}</span>
+              <span className="text-[10px] text-white/30 font-mono">{item.qty}</span>
+            </div>
+            <span className="text-xs font-mono text-white/80">{item.price}</span>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-white/[0.06] px-4 py-2.5 flex justify-between items-center bg-white/[0.01]">
+        <span className="text-[11px] font-mono text-white/30 uppercase tracking-widest">Total</span>
+        <span className="text-sm font-mono font-bold text-amber-400">{total}</span>
+      </div>
+
+      {/* Action Handler Footers matching lifecycle state states */}
+      {rawPayload && (
+        <div className="border-t border-white/[0.05] p-2 bg-zinc-950/60 flex justify-end">
+          {status === "AVAILABLE" && (
+            <button
+              onClick={handleLockDeal}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-mono font-medium hover:bg-amber-400 transition-all active:scale-95 flex items-center gap-1"
+            >
+              Secure Market Deal
+            </button>
+          )}
+          {status === "CREATING" && (
+            <button disabled className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs font-mono flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin text-amber-400" /> Connecting Node...
+            </button>
+          )}
+          {status === "PENDING_VENDOR" && (
+            <div className="px-3 py-1.5 text-[11px] font-mono text-amber-400/80 bg-amber-400/[0.03] border border-amber-400/20 rounded-lg flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 animate-pulse" /> Awaiting Vendor Handshake...
+            </div>
+          )}
+          {status === "ACCEPTED" && (
+            <div className="px-3 py-1.5 text-[11px] font-mono text-emerald-400 bg-emerald-400/[0.04] border border-emerald-400/20 rounded-lg flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5" /> Deal Locked · Code Generated
+            </div>
+          )}
+        </div>
+      )}
     </div>
-    <div className="border-t border-white/[0.06] px-4 py-2.5 flex justify-between items-center bg-white/[0.01]">
-      <span className="text-[11px] font-mono text-white/30 uppercase tracking-widest">Total</span>
-      <span className="text-sm font-mono font-bold text-amber-400">{total}</span>
-    </div>
-  </div>
-);
+  );
+};
 
 /* ─── Message bubble ─── */
 const Bubble = ({ msg }) => {
@@ -199,7 +288,7 @@ const HistoryItem = ({ chat, active, onClick }) => (
 );
 
 /* ════════════════════════════════════════
-   MAIN COMPONENT
+    MAIN COMPONENT
 ═════════════════════════════════════════ */
 const ClientDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -227,7 +316,7 @@ const ClientDashboard = () => {
     }
   }, [messages, isLoading, hasMessages]);
 
-  const sendMessage = async (text) => {
+  const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
@@ -260,13 +349,14 @@ const ClientDashboard = () => {
         timestamp: now(),
         deal: engineResult.feasible ? {
           vendor: `${engineResult.line_items[0]?.vendor_name || "Market Stall"} · ${engineResult.line_items[0]?.stall_number || "Multiple"}`,
-          items: engineResult.line_items.map((item) => ({
+          items: engineResult.line_items.map((item: { product_name: any; quantity: any; unit_type: any; line_total: { toLocaleString: () => any; }; }) => ({
             name: item.product_name,
             qty: `${item.quantity} ${item.unit_type}`,
             price: `₦${item.line_total.toLocaleString()}`,
           })),
           total: `₦${engineResult.total_cost.toLocaleString()}`,
           saved: `₦${engineResult.total_savings.toLocaleString()}`,
+          rawPayload: engineResult // <-- INJECTED RAW OBJECT RECORD HERE FOR TRANSMISSION
         } : null,
       }]);
     } catch (err) {
@@ -281,12 +371,12 @@ const ClientDashboard = () => {
     }
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = (e: { preventDefault: () => void; }) => {
     e.preventDefault();
     sendMessage(inputMessage);
   };
 
-  const handleSuggestion = (text) => {
+  const handleSuggestion = (text: any) => {
     sendMessage(text);
   };
 
@@ -481,7 +571,7 @@ const ClientDashboard = () => {
           </div>
         </aside>
 
-        {/* ════ MAIN AREA ════ */}
+        {/* ── ════ MAIN AREA ════ ── */}
         <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 relative z-10">
 
           {/* Header bar — only show when there are messages */}

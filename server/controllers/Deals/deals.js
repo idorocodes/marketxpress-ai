@@ -1,48 +1,68 @@
 import { db } from "../../db/db.js";
 import crypto from "crypto";
  
-export const createDealFromOptimization = async (req, res) => {
+ export const createDealFromOptimization = async (req, res) => {
   try {
     const buyerId = req.user.id;  
-    const { line_items, total_cost, total_savings } = req.body;
+    const { line_items } = req.body;  
 
     if (!line_items || line_items.length === 0) {
       return res.status(400).json({ success: false, message: "Cannot secure an empty cart matrix." });
     }
 
  
-    const vendorId = line_items[0].vendor_id; 
-    const qrToken = crypto.randomBytes(16).toString("hex");
-
-    // Start a transaction block
-    await db.query("BEGIN");
-
-    const dealInsertQuery = `
-      INSERT INTO deals (buyer_id, vendor_id, total_cost, total_savings, qr_verification_code)
-      VALUES ($1, $2, $3, $4, $5) RETURNING id;
-    `;
-    const { rows } = await db.query(dealInsertQuery, [buyerId, vendorId, total_cost, total_savings, qrToken]);
-    const dealId = rows[0].id;
-
-    const itemInsertQuery = `
-      INSERT INTO deal_items (deal_id, product_id, product_name, quantity, unit_type, negotiated_price, line_total)
-      VALUES ($1, $2, $3, $4, $5, $6, $7);
-    `;
-
+    const itemsByVendor = {};
     for (const item of line_items) {
-      await db.query(itemInsertQuery, [
-        dealId,
-        item.id,
-        item.product_name,
-        item.quantity,
-        item.unit_type,
-        item.negotiated_price,
-        item.line_total
-      ]);
+      if (!itemsByVendor[item.vendor_id]) {
+        itemsByVendor[item.vendor_id] = [];
+      }
+      itemsByVendor[item.vendor_id].push(item);
+    }
+
+ 
+    await db.query("BEGIN");
+    const createdDealIds = [];
+
+ 
+    for (const [vendorId, vendorItems] of Object.entries(itemsByVendor)) {
+ 
+      const vendorTotalCost = vendorItems.reduce((sum, item) => sum + item.line_total, 0);
+      const vendorTotalSavings = vendorItems.reduce((sum, item) => sum + ((item.advertised - item.negotiated_price) * item.quantity), 0);
+      const qrToken = crypto.randomBytes(16).toString("hex");
+ 
+const dealInsertQuery = `
+  INSERT INTO deals (buyer_id, vendor_id, total_cost, total_savings, qr_verification_code, status)
+  VALUES ($1, $2, $3, $4, $5, 'PENDING') RETURNING id; 
+`;
+      const { rows } = await db.query(dealInsertQuery, [buyerId, vendorId, vendorTotalCost, vendorTotalSavings, qrToken]);
+      const dealId = rows[0].id;
+      createdDealIds.push(dealId);
+
+ 
+      const itemInsertQuery = `
+        INSERT INTO deal_items (deal_id, product_id, product_name, quantity, unit_type, negotiated_price, line_total)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
+      `;
+
+      for (const item of vendorItems) {
+        await db.query(itemInsertQuery, [
+          dealId,
+          item.id,
+          item.product_name,
+          item.quantity,
+          item.unit_type,
+          item.negotiated_price,
+          item.line_total
+        ]);
+      }
     }
 
     await db.query("COMMIT");
-    return res.status(201).json({ success: true, dealId, message: "Deal route registered under pending review statuses." });
+    return res.status(201).json({ 
+      success: true, 
+      dealIds: createdDealIds, 
+      message: `Successfully split and routed optimization matrix into ${createdDealIds.length} vendor deals.` 
+    });
 
   } catch (error) {
     await db.query("ROLLBACK");
@@ -50,7 +70,6 @@ export const createDealFromOptimization = async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to persist optimization configuration." });
   }
 };
- 
 export const confirmDeal = async (req, res) => {
   try {
     const dealId = req.params.id;
@@ -83,8 +102,7 @@ export const confirmDeal = async (req, res) => {
       const { rows: finalRows } = await db.query(lockQuery, [dealId]);
       updatedDeal = finalRows[0];
       
-      // OPTIONAL: Emit socket notification trigger to instantly update peer client layouts here!
-      // req.io.to(dealId).emit("deal_status_changed", { status: 'ACCEPTED' });
+ 
     }
 
     return res.status(200).json({ 

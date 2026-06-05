@@ -38,10 +38,10 @@ const Signup = () => {
     setIsLoading(true);
 
     try {
-      // Pull base registry route (ex: http://localhost:5000/api/auth/register)
+ 
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
-      const response = await fetch(`${baseUrl}/register`, {
+      const response = await fetch(`${baseUrl}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
