@@ -73,7 +73,7 @@ const dealInsertQuery = `
 export const confirmDeal = async (req, res) => {
   try {
     const dealId = req.params.id;
-    const { id: userId, role } = req.user;  l 
+    const { id: userId, role } = req.user; 
 
  
     const { rows } = await db.query("SELECT * FROM deals WHERE id = $1", [dealId]);

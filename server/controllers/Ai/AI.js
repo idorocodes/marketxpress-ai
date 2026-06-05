@@ -75,6 +75,8 @@ Example output: [{"name": "RICE", "quantity": 4}, {"name": "TOMATOES", "quantity
         rawText = arrayMatch[0];
       }
 
+      
+
       // Safely parse the isolated block
       const parsedArray = JSON.parse(rawText);
 

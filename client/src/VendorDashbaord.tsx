@@ -422,7 +422,7 @@ const VendorDashboard = () => {
     try {
       const endpoint =
         action === "confirm"
-          ? `${baseUrl}/deals/${dealId}/confirm`
+          ? `${baseUrl}/deals/${dealId}/vendor-confirm`
           : `${baseUrl}/deals/${dealId}/reject`;
 
       const res = await fetch(endpoint, {
@@ -435,8 +435,7 @@ const VendorDashboard = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Action failed.");
 
-      // Optimistic local update
-      setDeals((prev) =>
+       setDeals((prev) =>
         prev.map((d) =>
           d.id === dealId
             ? {
