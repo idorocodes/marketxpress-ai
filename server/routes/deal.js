@@ -13,7 +13,7 @@ dealRouter.use(authMiddleware);
 dealRouter.post("/create", createDealFromOptimization);
 dealRouter.post("/:id/confirm",confirmDeal)
 dealRouter.post("/:id/vendor-confirm",acceptDeal)
-dealRouter.get("/api/:id/qr",dealQr)
+dealRouter.get("/:id/qr",dealQr)
 dealRouter.post('/:id/reject',rejectDeal)
 dealRouter.get("/:id/status",dealStatus)
 dealRouter.post("/:id/confirm", confirmDeal);
