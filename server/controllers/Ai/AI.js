@@ -1,12 +1,13 @@
-
- class AiClient {
+class AiClient {
   /**
    * Creates a new instance with the given API key.
    * @param {string} apiKey - The Groq Cloud API access key token
    */
   constructor(apiKey) {
     if (!apiKey) {
-      throw new Error("[AiClient] Initialization failed: An API key must be supplied.");
+      throw new Error(
+        "[AiClient] Initialization failed: An API key must be supplied.",
+      );
     }
     this.apiKey = apiKey;
     this.apiUrl = "https://api.groq.com/openai/v1/chat/completions";
@@ -18,70 +19,83 @@
    * * @param {string} userMessage - Raw text from your client dashboard input
    * @returns {Promise<Array<{name: string, quantity: number}>>}
    */
-   async parseUserRequirements(userMessage) {
-    // Structural system instruction matrix ensuring a rigid JSON schema return signature
-    const systemPrompt = `You are a strict data transformation engine. 
-Convert the user's raw Nigerian market food requests into a valid JSON array.
-Each object in the array must contain exactly two fields:
-1. "name": (string, trimmed, normalized to UPPERCASE, e.g., "RICE", "YAM", "EGUSI")
-2. "quantity": (integer, representing the units requested)
+  // Inside your AiClient class in AI.js
 
-Examples:
-- "I need 3 mudu of rice and 2 tubers of yam" -> [{"name": "RICE", "quantity": 3}, {"name": "YAM", "quantity": 2}]
-- "Get me two cups of egusi" -> [{"name": "EGUSI", "quantity": 2}]
+  async parseUserRequirements(message) {
+    try {
+      const systemPrompt = `You are a strict data-extraction engine. Your sole job is to parse conversational cooking or shopping requests into a structured JSON array.
 
-Output ONLY the raw JSON array. Do not wrap it in markdown code blocks like \`\`\`. No conversational text introduction.`;
+CRITICAL MAP MATCHING RULES:
+1. Standardize all item names into their exact uppercase singular or designated dictionary names:
+   - "oil", "vegetable oil" -> "VEGETABLE OIL"
+   - "palm oil" -> "PALM OIL"
+   - "maggi", "seasoning cubes" -> "MAGGI CUBES"
+   - "peppers", "ata rodo", "shombo" -> "PEPPER"
+   - "onions" -> "ONIONS"
+   - "tomatoes" -> "TOMATOES"
+   - "curry", "thyme", "seasoning" -> "SPICES"
+   - "meat", "beef" -> "BEEF"
 
-    const body = {
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage }
-      ],
-      temperature: 0.1, // Set low to guarantee structural schema compliance
-      max_tokens: 250,
-      // Forces Groq to natively process and respond via JSON Object containment bounds
-      response_format: { type: "json_object" } 
-    };
+Each object in the array must strictly match this shape:
+{ "name": "STANDARD_NAME_IN_UPPERCASE", "quantity": number }
 
-    const response = await fetch(this.apiUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
+Example input: "Cook jollof rice for 4 people, budget ₦2,500"
+Example output: [{"name": "RICE", "quantity": 4}, {"name": "TOMATOES", "quantity": 2}, {"name": "ONIONS", "quantity": 2}, {"name": "PEPPER", "quantity": 2}, {"name": "VEGETABLE OIL", "quantity": 1}, {"name": "MAGGI CUBES", "quantity": 1}]`;
+      const response = await fetch(this.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+          temperature: 0.1,
+        }),
+      });
 
-    const status = response.status;
-    const text = await response.text();
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(
+          `Groq API returned HTTP ${response.status}: ${errText}`,
+        );
+      }
 
-    if (!response.ok) {
-      throw new Error(`Groq API response error status ${status}: ${text}`);
+      const data = await response.json();
+      let rawText = data.choices[0].message.content.trim();
+      console.log("[DeciderAI] Raw model response text:", rawText);
+
+      // ─── HIGH SECURITY CLEANING STEP ───
+      // Slices out everything except the actual raw [...] array block
+      const arrayMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        rawText = arrayMatch[0];
+      }
+
+      // Safely parse the isolated block
+      const parsedArray = JSON.parse(rawText);
+
+      if (!Array.isArray(parsedArray)) {
+        throw new Error("Parsed result is not an array");
+      }
+
+      return parsedArray.map((item) => ({
+        name: String(item.name).toUpperCase().trim(),
+        quantity: Number(item.quantity) || 1,
+      }));
+    } catch (error) {
+      console.error(
+        "[DeciderAI] Structural extraction breakdown:",
+        error.message,
+      );
+      throw new Error(
+        "AI output failed to comply with the standard required array signature formatting.",
+      );
     }
-
-    // Mirrors Serde parsing step
-    const parsedData = JSON.parse(text);
-    const rawContent = parsedData.choices[0]?.message?.content;
-
-    if (!rawContent) {
-      throw new Error("Empty completion array payload returned from the AI inference node.");
-    }
-
-    // Parse the inner generated structured content safely
-    const innerJson = JSON.parse(rawContent);
-    
-    // Accommodate standard object nesting configurations if returned
-    const finalArray = Array.isArray(innerJson) ? innerJson : (innerJson.required_items || innerJson.items);
-    
-    if (!Array.isArray(finalArray)) {
-      throw new Error("AI output failed to comply with the standard required array signature formatting.");
-    }
-
-    return finalArray;
   }
 }
 
-
-
-export default AiClient
+export default AiClient;
