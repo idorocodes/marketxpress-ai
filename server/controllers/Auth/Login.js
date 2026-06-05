@@ -4,7 +4,7 @@ import  jwtUtils  from "../../util/jwt.js";
 
  const Login = async (req, res) => {
   try {
-    const { email, password } = req.body;w
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Please enter all fields" });
@@ -15,7 +15,6 @@ import  jwtUtils  from "../../util/jwt.js";
     const { rows } = await db.query(queryText, [email]);
     const user = rows[0];
 
-     
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
