@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom"; // Added for routing
 import { Eye, EyeOff, Lock, Mail, AlertTriangle, X } from "lucide-react";
 
@@ -9,6 +9,26 @@ const Login = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("user_token");
+
+    if (token) {
+      console.log("User is logged in");
+
+      const base64Payload = token.split(".")[1];
+      const decodedPayload = JSON.parse(window.atob(base64Payload));
+
+      if (decodedPayload.role?.toUpperCase() === "VENDOR") {
+        navigate("/vendor-dashboard");
+      } else {
+        navigate("/buyer-dashboard");
+      }
+    } else {
+      console.log("User is not logged in");
+      
+    }
+  }, []);
 
   // Added 'async' keyword right here so 'await fetch' can work
   const handleSubmit = async (e) => {
@@ -60,7 +80,7 @@ const Login = () => {
         if (decodedPayload.role?.toUpperCase() === "VENDOR") {
           navigate("/vendor-dashboard");
         } else {
-          navigate("/dashboard");
+          navigate("/buyer-dashboard");
         }
       } else {
         // Log the complete keys back to help narrow down what keys the backend object sent

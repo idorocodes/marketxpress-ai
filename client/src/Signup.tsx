@@ -64,7 +64,7 @@ const Signup = () => {
 
       if (extractedToken) {
         localStorage.setItem("user_token", extractedToken);
-        navigate("/dashboard");
+        navigate("/login");
       } else {
         // Fallback redirect if your backend doesn't instantly sign them in on signup
         navigate("/login");

@@ -244,18 +244,7 @@ const DealCard = ({
             ))}
           </div>
 
-          {/* QR code hint */}
-          {deal.status === "ACCEPTED" && (
-            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-emerald-400/[0.04] border border-emerald-400/15 flex items-center gap-2">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="text-[11px] font-mono text-emerald-400/80">
-                QR Code:{" "}
-                <span className="text-emerald-400 font-medium">
-                  {deal.qr_verification_code}
-                </span>
-              </span>
-            </div>
-          )}
+         
 
           {deal.status === "PENDING_VENDOR" && (
             <div className="mx-4 mb-4 px-3 py-2.5 rounded-xl bg-blue-400/[0.04] border border-blue-400/15 flex items-center gap-2">
